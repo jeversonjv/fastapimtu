@@ -1,0 +1,82 @@
+version: '3'
+
+networks:
+    my-network:
+        driver: bridge
+
+volumes:
+  postgres_data:
+
+services:
+  my-app:
+    build:
+       context: .
+       dockerfile: Dockerfile
+    container_name: my-app
+    command: bash -c "uvicorn main:app --host 0.0.0.0 --port 8000"
+    restart: always
+    ports:
+      - "8000:8000"
+    deploy:
+        resources:
+            limits:
+              cpus: "0.1"
+              memory: 50M
+    networks:
+      - my-network
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  consumer:
+    build:
+       context: .
+       dockerfile: Dockerfile_consumer
+    container_name: consumer
+    restart: always
+    command: bash -c "python3 util/rabbitmq_consumer.py"
+    deploy:
+        resources:
+            limits:
+              cpus: "0.1"
+              memory: 50M
+    networks:
+      - my-network
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  postgres:
+    image: postgres:13.1
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.6"
+          memory: 250M
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - my-network
+  
+  rabbitmq:
+    image: rabbitmq:3.8.17-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    networks:
+      - my-network
